@@ -21,8 +21,7 @@ router.get("/dashboard", ensureAuthenticated, (req, res) =>
   })
 );
 
-router.post("/fileUpload", ensureAuthenticated, (req, res) => {
-  console.log(req.files[0]);
+router.post("/fileUpload", forwardAuthenticated, (req, res) => {
   const today = moment().format('YYYYMMDD');
   var fileUrl =
     __dirname.replace("back-node/routes", `upload/${today}_`) + req.files[0].originalname; //文件名
@@ -40,10 +39,10 @@ router.post("/fileUpload", ensureAuthenticated, (req, res) => {
         // 文件上传成功，respones给客户端
         response = {
           message: "File uploaded successfully",
-          filename: req.files[0].originalname,
+          filename: `${today}_` + req.files[0].originalname,
         };
         res.send({
-          code: 0,
+          code: 200,
           data: response,
           msg: "",
         });

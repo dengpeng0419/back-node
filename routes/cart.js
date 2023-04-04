@@ -3,7 +3,7 @@ var router = express.Router();
 var mongoose = require("mongoose");
 var moment = require("moment");
 // Load
-const Product = require("../model/product");
+const Cart = require("../model/cart");
 const { forwardAuthenticated, ensureAuthenticated } = require("../common/auth");
 
 // list
@@ -12,10 +12,10 @@ router.post("/list", forwardAuthenticated, (req, res) => {
   const pageNum = req.body.current || 1;
   const sortTj = req.body.sort ? "name" : "_id";
   const name = req.body.name || "";
-  const label = req.body.label || "";
-  const category = req.body.category || "";
+  const userId = req.body.userId || "";
+  const status = req.body.status || "";
   console.log(req.body);
-  Product.find({
+  Cart.find({
     // .sort([[sortTj,parms.sort]])
     /* 可多条件搜索例如：$or: [
         {'description': {'$regex': key, $options: '$i'}},
@@ -24,8 +24,8 @@ router.post("/list", forwardAuthenticated, (req, res) => {
     }) */
     $or: [
       { name: { $regex: name, $options: "$i" } },
-      { label: { $regex: label, $options: "$i" } },
-      { category: { $regex: category, $options: "$i" } },
+      { userId: { $regex: userId, $options: "$i" } },
+      { status: { $regex: status, $options: "$i" } },
     ],
   })
     .sort({
@@ -35,24 +35,22 @@ router.post("/list", forwardAuthenticated, (req, res) => {
     .limit(Number(pageSize))
     .exec(function (errList, docsList) {
       console.log(errList, docsList);
-      const products = docsList?.map((item) => {
+      const list = docsList?.map((item) => {
         return {
           _id: item._id,
+          userId: item.uerId,
+          goodsId: item.goodsId,
           name: item.name,
           desc: item.desc,
           price: item.price,
           pic: item.pic,
-          type: item?.type?.split(',') || undefined,
-          color: item?.color?.split(',') || undefined,
+          detail: item.detail,
           status: item.status,
-          category: item.category,
-          top: item.top,
-          label: item?.label ? item.label?.split(',') : undefined,
           createTime: moment(item.createTime).format("YYYY-MM-DD HH:mm:ss"),
           createBy: item.createBy,
         };
       });
-      Product.count({}, function (err, count) {
+      Cart.count({}, function (err, count) {
         if (err) {
           res.send({
             code: 4,
@@ -62,7 +60,7 @@ router.post("/list", forwardAuthenticated, (req, res) => {
         } else {
           res.send({
             code: 200,
-            rows: products,
+            rows: list,
             total: count,
             msg: "",
           });
@@ -71,85 +69,119 @@ router.post("/list", forwardAuthenticated, (req, res) => {
     });
 });
 
+// getGoodsCount
+router.post("/getGoodsCount", forwardAuthenticated, (req, res) => {
+  const userId = req.body.userId || "";
+  const status = req.body.status || "";
+  console.log(req.body);
+  Cart.count({userId, status}, function (err, count) {
+    if (err) {
+      res.send({
+        code: 4,
+        data: "异常",
+        msg: "异常",
+      });
+    } else {
+      res.send({
+        code: 200,
+        total: count,
+        msg: "",
+      });
+    }
+  });
+});
+
 // add
 router.post("/add", forwardAuthenticated, (req, res) => {
   console.log("param:", req.body);
-  const { name, desc, price, pic, type, status, category, top, label, color } =
+  const { userId, goodsId, name, desc, price, pic, color, type, number, status } =
     req.body;
-  const files = pic?.map((the) => {
-    const origin = req.headers.origin || '';
-    const domain = origin.includes('localhost') ? 'http://localhost:3333/' : 'http://124.222.99.89:56578/upload/';
-    const fileName = !the.response ? `${domain}${the.name}` : `${domain}${moment().format('YYYYMMDD')}_${the.name}`;
-    return {
-      uid: the?.uid,
-      size: the?.size,
-      type: the?.type,
-      name: the?.response?.data?.filename || the?.name,
-      thumbUrl: fileName
-    };
-  });
 
-  const product = new Product({
-    name,
-    desc,
-    price,
-    pic: files,
-    type: type?.join(",") || "",
-    color: color?.join(",") || "",
-    status,
-    category,
-    top,
-    label: label?.join(",") || "",
-    createBy: "管理员",
-  });
-  product
-    .save()
-    .then((doc) => {
-      res.send({
-        code: 200,
-        data: doc,
-        // total: all,
-        msg: "",
-      });
-    })
-    .catch((err) => console.log(err));
-});
-
-// update
-router.post("/update", (req, res) => {
-  const { _id, name, desc, price, pic, type, status, category, top, label, color } =
-    req.body;
-  console.log("param:", req.body);
-  const files = pic?.map((the) => {
-    const origin = req.headers.origin || '';
-    const domain = origin.includes('localhost') ? 'http://localhost:3333/' : 'http://124.222.99.89:56578/upload/';
-    const fileName = !the.response ? `${domain}${the.name}` : `${domain}${moment().format('YYYYMMDD')}_${the.name}`;
-    return {
-      uid: the?.uid,
-      size: the?.size,
-      type: the?.type,
-      name: the?.response?.data?.filename || the?.name,
-      thumbUrl: fileName
-    };
-  });
-
-  Product.findOne({ _id: _id }, function (error, doc) {
+  Cart.findOne({ userId, goodsId }, function (error, doc) {
     if (!error) {
-      Product.updateOne(
+      //存在就更新
+      const newDetail = [];
+      const oldDetail = doc.detail || [];
+      oldDetail.map((item) => {
+        if (item.color === color && item.type === type) {
+          newDetail.push({ color, type, number: number + item.number });
+        } else {
+          newDetail.push(item);
+        }
+      });
+      Cart.updateOne(
         {
-          _id: _id,
+          _id: doc._id,
         },
         {
           name,
           desc,
           price,
-          pic: files,
-          type: type?.join(",") || "",
-          color: color?.join(",") || "",
+          pic,
           status,
-          category,
-          top,
-          label: label?.join(",") || ""
+          detail: newDetail,
+        },
+        function (error, doc) {
+          //成功返回1  失败返回0
+          if (doc) {
+            res.send({
+              code: 200,
+              data: doc,
+              // total: all,
+              msg: "",
+            });
+          }
+        }
+      );
+    } else {
+      //不存在新建
+      const cart = new Cart({
+        userId,
+        goodsId,
+        name,
+        desc,
+        price,
+        pic,
+        detail: [{ color, type, number }],
+        createBy: "管理员",
+      });
+      cart
+        .save()
+        .then((doc) => {
+          res.send({
+            code: 200,
+            data: doc,
+            // total: all,
+            msg: "",
+          });
+        })
+        .catch((err) => console.log(err));
+    }
+  });
+});
+
+// update
+router.post("/update", (req, res) => {
+  const { _id, color, type, number } = req.body;
+  console.log("param:", req.body);
+
+  Cart.findOne({ _id: _id }, function (error, doc) {
+    if (!error) {
+      const newDetail = [];
+      const oldDetail = doc.detail || [];
+      oldDetail.map((item) => {
+        if (item.color === color && item.type === type) {
+          newDetail.push({ color, type, number: number + item.number });
+        } else {
+          newDetail.push(item);
+        }
+      });
+      Cart.updateOne(
+        {
+          _id: _id,
+        },
+        {
+          detail: newDetail,
         },
         function (error, doc) {
           //成功返回1  失败返回0
@@ -166,28 +198,7 @@ router.post("/update", (req, res) => {
     } else {
       res.send({
         code: 4,
-        data: "商品不存在",
-      });
-    }
-  });
-});
-
-// detail
-router.post("/detail", (req, res) => {
-  const { _id } = req.body;
-  console.log("param:", req.body);
-
-  Product.findOne({ _id: _id }, function (error, doc) {
-    if (!error) {
-      res.send({
-        code: 200,
-        detail: doc,
-        msg: "",
-      });
-    } else {
-      res.send({
-        code: 4,
-        data: "商品不存在",
+        data: "不存在",
       });
     }
   });
@@ -195,7 +206,7 @@ router.post("/detail", (req, res) => {
 
 // delete
 router.post("/delete", (req, res) => {
-  Product.remove(
+  Cart.remove(
     {
       _id: req.body._id,
     },
@@ -227,7 +238,7 @@ router.post("/delete", (req, res) => {
 router.post("/deleteBatch", forwardAuthenticated, (req, res) => {
   const idArray = req.body.ids || [];
   console.log(req.body);
-  Product.deleteMany(
+  Cart.deleteMany(
     {
       _id: { $in: idArray },
     },
@@ -250,6 +261,42 @@ router.post("/deleteBatch", forwardAuthenticated, (req, res) => {
           res.send({
             code: 4,
             msg: "删除失败",
+          });
+        }
+      }
+    }
+  );
+});
+
+// submit
+router.post("/submit", forwardAuthenticated, (req, res) => {
+  const idArray = req.body.ids || [];
+  console.log(req.body);
+  Cart.updateMany(
+    {
+      _id: { $in: idArray },
+    },
+    {
+      $set: { status: '1' }
+    },
+    function (err, docs) {
+      console.log(err, docs);
+      if (err) {
+        res.send({
+          code: 4,
+          msg: "异常",
+        });
+      } else {
+        if (docs.n >= 1) {
+          res.send({
+            code: 200,
+            // data: docs,
+            msg: "提交成功",
+          });
+        } else {
+          res.send({
+            code: 4,
+            msg: "提交失败",
           });
         }
       }

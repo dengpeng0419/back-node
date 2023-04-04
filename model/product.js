@@ -18,11 +18,15 @@ const productSchema = new mongoose.Schema({
     required: true
   },
   type: { //规格
-    type: Array,
+    type: String,
+    required: true
+  },
+  color: { //颜色
+    type: String,
     required: true
   },
   status: { //在售状态, 1在售
-    type: Number,
+    type: String,
     required: true
   },
   category: { //分类
@@ -37,9 +41,13 @@ const productSchema = new mongoose.Schema({
     type: String,
     required: false
   },
-  date: {
+  createTime: {
     type: Date,
     default: Date.now
+  },
+  createBy: {
+    type: String,
+    required: false
   }
 });
 

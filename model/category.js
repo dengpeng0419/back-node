@@ -13,9 +13,13 @@ const categorySchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  date: {
+  createTime: {
     type: Date,
     default: Date.now
+  },
+  createBy: {
+    type: String,
+    required: false
   }
 });
 

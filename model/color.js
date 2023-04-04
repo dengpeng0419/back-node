@@ -1,15 +1,7 @@
 var mongoose = require("mongoose");
 
-const userSchema = new mongoose.Schema({
+const colorSchema = new mongoose.Schema({
   name: {
-    type: String,
-    required: true
-  },
-  phone: {
-    type: String,
-    required: true
-  },
-  password: {
     type: String,
     required: true
   },
@@ -27,6 +19,6 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-const User = mongoose.model("User", userSchema);
+const Color = mongoose.model("Color", colorSchema);
 
-module.exports = User;
+module.exports = Color;
